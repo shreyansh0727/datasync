@@ -5,6 +5,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from typing import Any
 import json
+import os
+import uvicorn
 
 from .ws import RoomManager
 
@@ -74,3 +76,9 @@ async def websocket_signal(websocket: WebSocket, room_id: str):
         _signals.get(room_id, set()).discard(websocket)
         if not _signals.get(room_id):
             _signals.pop(room_id, None)
+
+if __name__ == "__main__":
+    import os
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port)
