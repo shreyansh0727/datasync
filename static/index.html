@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DataShare - Modern File Sharing</title>
+    <link rel="stylesheet" href="/static/css/styles.css" />
+    <!-- QRCode.js library - no dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header with fade-in animation -->
+      <header class="header">
+        <h1 class="logo">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          DataSync
+        </h1>
+        <p class="tagline">Share files instantly across devices</p>
+      </header>
+
+      <!-- Glass card for connection -->
+      <div class="glass-card card-connect">
+        <div class="card-header">
+          <h2>Connection</h2>
+          <span class="status-badge" id="statusBadge">Disconnected</span>
+        </div>
+        <div class="input-group">
+          <label for="room">Room ID</label>
+          <div class="input-with-button">
+            <input id="room" type="text" value="" placeholder="Enter room name" />
+            <button id="generateBtn" class="btn btn-icon btn-generate" title="Generate random room ID">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="button-group">
+          <button id="connectBtn" class="btn btn-primary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14"></path>
+              <path d="m12 5 7 7-7 7"></path>
+            </svg>
+            Connect
+          </button>
+          <button id="disconnectBtn" class="btn btn-secondary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+            Disconnect
+          </button>
+        </div>
+
+        <!-- QR Code section (shown when connected) -->
+        <div id="qrSection" class="qr-section" style="display: none;">
+          <div class="qr-header">
+            <span>📱 Scan to Join Room</span>
+            <button id="toggleQr" class="btn-link">Show QR</button>
+          </div>
+          <div id="qrContainer" class="qr-container" style="display: none;"></div>
+        </div>
+      </div>
+
+      <!-- Glass card for messages -->
+      <div class="glass-card card-message">
+        <div class="card-header">
+          <h2>Messages</h2>
+        </div>
+        <div class="input-group">
+          <input id="msg" type="text" placeholder="Type your message..." />
+          <button id="sendMsg" class="btn btn-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+        <div id="log" class="message-log"></div>
+      </div>
+
+      <!-- Glass card for file sharing -->
+      <div class="glass-card card-file">
+        <div class="card-header">
+          <h2>File Transfer</h2>
+        </div>
+        <div class="file-upload-area">
+          <input id="file" type="file" />
+          <label for="file" class="file-label">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <span>Click to select file</span>
+          </label>
+        </div>
+        <button id="sendFile" class="btn btn-primary btn-block">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Send File
+        </button>
+        
+        <div class="progress-container">
+          <div class="progress-label">
+            <span>Upload</span>
+            <span id="sendPercent">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div id="sendProg" class="progress-fill"></div>
+          </div>
+        </div>
+        
+        <div class="progress-container">
+          <div class="progress-label">
+            <span>Download</span>
+            <span id="recvPercent">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div id="recvProg" class="progress-fill progress-fill-receive"></div>
+          </div>
+        </div>
+
+        <div id="downloads" class="downloads-list"></div>
+      </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+  </body>
+</html>
