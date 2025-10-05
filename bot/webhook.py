@@ -19,20 +19,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Get token from environment
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-
-# Global variable to hold application
 application = None
 
-# FastAPI app for webhook
 bot_app = FastAPI()
 
 @bot_app.post("/webhook")
 async def telegram_webhook(request: Request):
     """Handle Telegram webhook updates"""
     if not application:
-        logger.error("❌ Bot not initialized - returning 503")
+        logger.error("❌ Bot not initialized")
         return Response(content="Bot not initialized", status_code=503)
     
     try:
@@ -46,7 +42,7 @@ async def telegram_webhook(request: Request):
 
 @bot_app.get("/")
 async def bot_health():
-    """Health check for bot"""
+    """Health check"""
     status = "running" if application else "not initialized"
     has_token = "yes" if TOKEN else "no"
     return {
@@ -56,7 +52,7 @@ async def bot_health():
     }
 
 async def init_bot():
-    """Initialize bot - called from main app startup"""
+    """Initialize bot for webhook-only mode"""
     global application
     
     logger.info("🚀 Starting bot initialization...")
@@ -68,8 +64,14 @@ async def init_bot():
     logger.info(f"✅ Token found: {TOKEN[:10]}...{TOKEN[-5:]}")
     
     try:
-        logger.info("📦 Building Telegram application...")
-        application = Application.builder().token(TOKEN).build()
+        # Build application WITHOUT updater (webhook-only mode)
+        logger.info("📦 Building Telegram application (webhook mode)...")
+        application = (
+            Application.builder()
+            .token(TOKEN)
+            .updater(None)  # Disable updater for webhook-only
+            .build()
+        )
         logger.info("✅ Application built")
         
         # Add handlers
@@ -89,7 +91,8 @@ async def init_bot():
         # Initialize
         logger.info("🔄 Initializing application...")
         await application.initialize()
-        logger.info("✅ Application initialized")
+        await application.start()  # Start the application
+        logger.info("✅ Application initialized and started")
         
         # Set webhook
         webhook_url = os.getenv("WEBHOOK_URL")
@@ -100,16 +103,18 @@ async def init_bot():
             logger.info(f"✅✅✅ Webhook set! Bot ready! ✅✅✅")
         else:
             logger.warning("⚠️ WEBHOOK_URL not set")
+            logger.info("💡 Add it in Render: https://datasync-rgfv.onrender.com")
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize bot: {e}")
         logger.exception("Full traceback:")
 
 async def shutdown_bot():
-    """Shutdown bot - called from main app shutdown"""
+    """Shutdown bot"""
     if application:
         try:
             logger.info("🛑 Shutting down bot...")
+            await application.stop()
             await application.shutdown()
             logger.info("✅ Bot shutdown complete")
         except Exception as e:
