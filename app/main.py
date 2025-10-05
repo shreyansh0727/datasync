@@ -39,10 +39,10 @@ async def websocket_room(websocket: WebSocket, room_id: str):
     
     try:
         while True:
-            try:
-                message = await websocket.receive()
-            except RuntimeError:
-                # Connection already closed
+            message = await websocket.receive()
+            
+            # Check for disconnect
+            if message.get("type") == "websocket.disconnect":
                 break
             
             if "text" in message:
@@ -84,12 +84,14 @@ async def websocket_room(websocket: WebSocket, room_id: str):
             elif "bytes" in message:
                 binary_data = message["bytes"]
                 await room_manager.broadcast_binary_to_websockets(room_id, binary_data)
-            
-            elif message.get("type") == "websocket.disconnect":
-                break
                 
     except WebSocketDisconnect:
-        pass
+        logger.info(f"WebSocket disconnected from room {room_id}")
+    except RuntimeError as e:
+        if "disconnect" in str(e).lower():
+            logger.info(f"WebSocket disconnect detected: {e}")
+        else:
+            logger.error(f"WebSocket runtime error: {e}")
     except Exception as e:
         logger.error(f"WebSocket error in room {room_id}: {e}")
     finally:
@@ -103,11 +105,7 @@ async def websocket_signal(websocket: WebSocket, room_id: str):
     
     try:
         while True:
-            try:
-                payload = await websocket.receive_text()
-            except RuntimeError:
-                break
-                
+            payload = await websocket.receive_text()
             for peer in list(_signals.get(room_id, set())):
                 if peer is websocket:
                     continue
@@ -118,6 +116,9 @@ async def websocket_signal(websocket: WebSocket, room_id: str):
                     
     except WebSocketDisconnect:
         pass
+    except RuntimeError as e:
+        if "disconnect" not in str(e).lower():
+            logger.error(f"Signal WebSocket runtime error: {e}")
     except Exception as e:
         logger.error(f"Signal WebSocket error: {e}")
     finally:
