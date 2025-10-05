@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, Set
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import ContextTypes
 import random
 
@@ -21,20 +21,20 @@ def generate_room_id() -> str:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send welcome message"""
     welcome_text = (
-        "🚀 *Welcome to DataShare Bot!*\n\n"
+        "🚀 Welcome to DataShare Bot!\n\n"
         "Share files instantly across devices using room codes.\n\n"
-        "*Commands:*\n"
+        "Commands:\n"
         "/create - Create a new room\n"
         "/join ROOM_ID - Join an existing room\n"
         "/leave - Leave current room\n"
         "/room - Show current room info\n"
         "/help - Show this help message\n\n"
-        "💡 *How it works:*\n"
+        "💡 How it works:\n"
         "1. Create or join a room\n"
         "2. Share the room ID with others\n"
         "3. Send files/messages - everyone receives them!"
     )
-    await update.message.reply_text(welcome_text, parse_mode='Markdown')
+    await update.message.reply_text(welcome_text)
 
 
 async def create_room(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -46,19 +46,11 @@ async def create_room(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_rooms[chat_id] = room_id
     room_files[room_id] = []
     
-    keyboard = [[InlineKeyboardButton(
-        "📤 Share Room Code", 
-        switch_inline_query=f"Join room: {room_id}"
-    )]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
     await update.message.reply_text(
-        f"✅ *Room Created!*\n\n"
-        f"🔑 Room ID: `{room_id}`\n"
+        f"✅ Room Created!\n\n"
+        f"🔑 Room ID: {room_id}\n"
         f"👥 Members: 1\n\n"
-        f"Share this code:\n`/join {room_id}`",
-        parse_mode='Markdown',
-        reply_markup=reply_markup
+        f"Share this code:\n/join {room_id}"
     )
 
 
@@ -67,19 +59,14 @@ async def join_room(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     
     if not context.args:
-        await update.message.reply_text(
-            "⚠️ Usage: `/join ROOM_ID`",
-            parse_mode='Markdown'
-        )
+        await update.message.reply_text("⚠️ Usage: /join ROOM_ID")
         return
     
     room_id = context.args[0].upper()
     
     if room_id not in rooms:
         await update.message.reply_text(
-            f"❌ Room `{room_id}` not found.\n"
-            f"Create one with /create",
-            parse_mode='Markdown'
+            f"❌ Room {room_id} not found.\nCreate one with /create"
         )
         return
     
@@ -98,18 +85,16 @@ async def join_room(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await context.bot.send_message(
                     member_id,
-                    f"👤 New member joined `{room_id}`",
-                    parse_mode='Markdown'
+                    f"👤 New member joined {room_id}"
                 )
             except Exception:
                 pass
     
     await update.message.reply_text(
-        f"✅ *Joined Room!*\n\n"
-        f"🔑 Room: `{room_id}`\n"
+        f"✅ Joined Room!\n\n"
+        f"🔑 Room: {room_id}\n"
         f"👥 Members: {len(rooms[room_id])}\n\n"
-        f"Send files/messages now!",
-        parse_mode='Markdown'
+        f"Send files/messages now!"
     )
 
 
@@ -129,10 +114,7 @@ async def leave_room(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del rooms[room_id]
         del room_files[room_id]
     
-    await update.message.reply_text(
-        f"✅ Left room `{room_id}`",
-        parse_mode='Markdown'
-    )
+    await update.message.reply_text(f"✅ Left room {room_id}")
 
 
 async def room_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -141,8 +123,7 @@ async def room_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if chat_id not in user_rooms:
         await update.message.reply_text(
-            "⚠️ Not in any room.\n"
-            "Use /create or /join"
+            "⚠️ Not in any room.\nUse /create or /join"
         )
         return
     
@@ -151,11 +132,10 @@ async def room_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_count = len(room_files.get(room_id, []))
     
     await update.message.reply_text(
-        f"📊 *Room Info*\n\n"
-        f"🔑 ID: `{room_id}`\n"
+        f"📊 Room Info\n\n"
+        f"🔑 ID: {room_id}\n"
         f"👥 Members: {member_count}\n"
-        f"📁 Files: {file_count}",
-        parse_mode='Markdown'
+        f"📁 Files: {file_count}"
     )
 
 
@@ -164,9 +144,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     
     if chat_id not in user_rooms:
-        await update.message.reply_text(
-            "⚠️ Join a room first!"
-        )
+        await update.message.reply_text("⚠️ Join a room first!")
         return
     
     room_id = user_rooms[chat_id]
@@ -178,8 +156,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await context.bot.send_message(
                     member_id,
-                    f"💬 *{sender}*: {text}",
-                    parse_mode='Markdown'
+                    f"💬 {sender}: {text}"
                 )
             except Exception as e:
                 logger.error(f"Send failed: {e}")
@@ -214,10 +191,9 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_document(
                     member_id,
                     doc.file_id,
-                    caption=f"📎 *From {sender}*\n"
+                    caption=f"📎 From {sender}\n"
                             f"📁 {doc.file_name}\n"
-                            f"💾 {doc.file_size/1024/1024:.2f} MB",
-                    parse_mode='Markdown'
+                            f"💾 {doc.file_size/1024/1024:.2f} MB"
                 )
                 success += 1
             except Exception as e:
@@ -245,8 +221,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_photo(
                     member_id,
                     photo.file_id,
-                    caption=f"📷 From *{sender}*",
-                    parse_mode='Markdown'
+                    caption=f"📷 From {sender}"
                 )
                 success += 1
             except Exception as e:
@@ -276,8 +251,7 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_video(
                     member_id,
                     video.file_id,
-                    caption=f"🎥 From *{sender}*",
-                    parse_mode='Markdown'
+                    caption=f"🎥 From {sender}"
                 )
                 success += 1
             except Exception as e:
