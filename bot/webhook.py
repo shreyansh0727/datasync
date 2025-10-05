@@ -119,3 +119,4 @@ async def shutdown_bot():
             logger.info("✅ Bot shutdown complete")
         except Exception as e:
             logger.error(f"❌ Error during shutdown: {e}")
+
