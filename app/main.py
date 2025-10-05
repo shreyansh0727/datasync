@@ -6,6 +6,8 @@ from fastapi.responses import FileResponse
 from typing import Any
 import json
 import logging
+import tempfile
+import os
 
 from bot.webhook import bot_app, init_bot, shutdown_bot
 from shared.rooms import room_manager
@@ -28,6 +30,9 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 app.mount("/bot", bot_app)
 
+# Store file chunks being assembled for Telegram
+file_assembly = {}
+
 @app.get("/")
 async def root() -> Any:
     return FileResponse(str(STATIC_DIR / "index.html"))
@@ -41,7 +46,6 @@ async def websocket_room(websocket: WebSocket, room_id: str):
         while True:
             message = await websocket.receive()
             
-            # Check for disconnect
             if message.get("type") == "websocket.disconnect":
                 break
             
@@ -50,9 +54,10 @@ async def websocket_room(websocket: WebSocket, room_id: str):
                 # Broadcast to other websockets
                 await room_manager.broadcast_to_websockets(room_id, data)
                 
-                # Also send to Telegram users in the room
                 try:
                     msg_data = json.loads(data)
+                    
+                    # Handle text messages
                     if msg_data.get('type') == 'msg':
                         from bot.webhook import application
                         if application:
@@ -64,18 +69,40 @@ async def websocket_room(websocket: WebSocket, room_id: str):
                                     )
                                 except Exception as e:
                                     logger.error(f"Failed to send to telegram {chat_id}: {e}")
+                    
+                    # Handle file metadata - prepare for assembly
                     elif msg_data.get('type') == 'file-meta':
-                        # Notify telegram users about incoming file
+                        file_id = msg_data.get('fileId')
+                        file_assembly[file_id] = {
+                            'name': msg_data.get('name'),
+                            'size': msg_data.get('size'),
+                            'mime': msg_data.get('mime'),
+                            'total_chunks': msg_data.get('totalChunks'),
+                            'chunks': [],
+                            'sender': msg_data.get('sender', 'Web User'),
+                            'room_id': room_id
+                        }
+                        logger.info(f"📥 Preparing to receive file: {msg_data.get('name')} ({file_id})")
+                        
+                        # Notify Telegram users
                         from bot.webhook import application
                         if application:
                             for chat_id in room_manager.get_telegram_users(room_id):
                                 try:
                                     await application.bot.send_message(
                                         chat_id,
-                                        f"📥 Receiving file: {msg_data.get('name')} ({msg_data.get('size', 0)/1024/1024:.2f} MB)"
+                                        f"📥 Receiving file from {msg_data.get('sender')}: {msg_data.get('name')} "
+                                        f"({msg_data.get('size', 0)/1024/1024:.2f} MB)"
                                     )
-                                except Exception as e:
-                                    logger.error(f"Failed to notify telegram: {e}")
+                                except Exception:
+                                    pass
+                    
+                    # Handle file chunk headers
+                    elif msg_data.get('type') == 'file-header':
+                        file_id = msg_data.get('fileId')
+                        if file_id in file_assembly:
+                            file_assembly[file_id]['pending_chunk'] = msg_data
+                            
                 except json.JSONDecodeError:
                     pass
                 except Exception as e:
@@ -83,7 +110,23 @@ async def websocket_room(websocket: WebSocket, room_id: str):
                     
             elif "bytes" in message:
                 binary_data = message["bytes"]
+                # Broadcast to other websockets
                 await room_manager.broadcast_binary_to_websockets(room_id, binary_data)
+                
+                # Collect chunks for Telegram upload
+                for file_id, file_info in list(file_assembly.items()):
+                    if file_info.get('pending_chunk') and file_info.get('room_id') == room_id:
+                        chunk_info = file_info['pending_chunk']
+                        file_info['chunks'].append({
+                            'idx': chunk_info['idx'],
+                            'data': binary_data
+                        })
+                        file_info.pop('pending_chunk', None)
+                        
+                        # Check if file is complete
+                        if len(file_info['chunks']) == file_info['total_chunks']:
+                            await send_file_to_telegram(file_id, file_info)
+                            del file_assembly[file_id]
                 
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected from room {room_id}")
@@ -96,6 +139,58 @@ async def websocket_room(websocket: WebSocket, room_id: str):
         logger.error(f"WebSocket error in room {room_id}: {e}")
     finally:
         room_manager.remove_websocket(room_id, websocket)
+
+
+async def send_file_to_telegram(file_id: str, file_info: dict):
+    """Assemble chunks and send file to Telegram users"""
+    try:
+        from bot.webhook import application
+        if not application:
+            logger.error("Bot application not initialized")
+            return
+        
+        # Sort chunks by index
+        file_info['chunks'].sort(key=lambda x: x['idx'])
+        
+        # Create temporary file
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file_info['name']}")
+        temp_path = temp_file.name
+        
+        # Write all chunks to temp file
+        with open(temp_path, 'wb') as f:
+            for chunk in file_info['chunks']:
+                f.write(chunk['data'])
+        
+        logger.info(f"📦 Assembled file: {file_info['name']} ({os.path.getsize(temp_path)} bytes)")
+        
+        # Send to all Telegram users in the room
+        room_id = file_info['room_id']
+        sender = file_info['sender']
+        success_count = 0
+        
+        for chat_id in room_manager.get_telegram_users(room_id):
+            try:
+                with open(temp_path, 'rb') as f:
+                    await application.bot.send_document(
+                        chat_id,
+                        document=f,
+                        filename=file_info['name'],
+                        caption=f"📎 From {sender} (Web)\n"
+                                f"📁 {file_info['name']}\n"
+                                f"💾 {file_info['size']/1024/1024:.2f} MB"
+                    )
+                success_count += 1
+                logger.info(f"✅ Sent file to Telegram user {chat_id}")
+            except Exception as e:
+                logger.error(f"❌ Failed to send file to {chat_id}: {e}")
+        
+        # Clean up temp file
+        os.unlink(temp_path)
+        logger.info(f"✅ File sent to {success_count} Telegram user(s)")
+        
+    except Exception as e:
+        logger.error(f"❌ Error sending file to Telegram: {e}")
+
 
 @app.websocket("/signal/{room_id}")
 async def websocket_signal(websocket: WebSocket, room_id: str):

@@ -1,4 +1,5 @@
 (() => {
+  const usernameInput = document.getElementById('username');
   const roomInput = document.getElementById('room');
   const generateBtn = document.getElementById('generateBtn');
   const connectBtn = document.getElementById('connectBtn');
@@ -22,6 +23,17 @@
   let qrCode = null;
   const recvState = new Map();
 
+  // Load saved username
+  const savedName = localStorage.getItem('datasync_username');
+  if (savedName) {
+    usernameInput.value = savedName;
+  }
+
+  // Save username on change
+  usernameInput.addEventListener('change', () => {
+    localStorage.setItem('datasync_username', usernameInput.value);
+  });
+
   function log(text) {
     const div = document.createElement('div');
     div.textContent = text;
@@ -43,7 +55,6 @@
     }
   }
 
-  // Generate random room ID (short, readable format)
   function generateRoomId() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let result = '';
@@ -53,19 +64,13 @@
     return result;
   }
 
-  // Generate room ID button
   generateBtn.onclick = () => {
     roomInput.value = generateRoomId();
   };
 
-  // Generate QR code for room URL
   function showQRCode(roomId) {
     const roomUrl = `${location.origin}/?room=${encodeURIComponent(roomId)}`;
-    
-    // Clear previous QR code
     qrContainer.innerHTML = '';
-    
-    // Create new QR code
     qrCode = new QRCode(qrContainer, {
       text: roomUrl,
       width: 200,
@@ -74,11 +79,9 @@
       colorLight: '#ffffff',
       correctLevel: QRCode.CorrectLevel.H
     });
-    
     qrSection.style.display = 'block';
   }
 
-  // Toggle QR code visibility
   toggleQr.onclick = () => {
     if (qrContainer.style.display === 'none') {
       qrContainer.style.display = 'flex';
@@ -89,15 +92,17 @@
     }
   };
 
-  // Check URL parameters for room ID
   function checkUrlParams() {
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('room');
     if (roomParam) {
       roomInput.value = roomParam;
-      // Auto-connect if room in URL
       setTimeout(() => connect(), 500);
     }
+  }
+
+  function getUserName() {
+    return usernameInput.value.trim() || 'Web User';
   }
 
   function connect() {
@@ -111,7 +116,6 @@
     
     const encodedRoom = encodeURIComponent(roomId);
     ws = new WebSocket(wsUrl(`/ws/${encodedRoom}`));
-    
     ws.binaryType = 'arraybuffer';
     
     ws.onopen = () => { 
@@ -119,7 +123,6 @@
       setStatus('Connected', true);
       showQRCode(roomId);
       
-      // Update URL without reload
       const newUrl = `${location.origin}/?room=${encodedRoom}`;
       window.history.pushState({}, '', newUrl);
     };
@@ -169,7 +172,11 @@
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const text = msgInput.value.trim();
     if (!text) return;
-    ws.send(JSON.stringify({ type: 'msg', sender: 'you', text }));
+    ws.send(JSON.stringify({ 
+      type: 'msg', 
+      sender: getUserName(), 
+      text 
+    }));
     msgInput.value = '';
   };
 
@@ -209,7 +216,7 @@
       mime: f.type || 'application/octet-stream',
       totalChunks,
       fileId,
-      sender: 'you'
+      sender: getUserName()
     }));
 
     log(`📤 Sending: ${f.name} (${(f.size / 1024 / 1024).toFixed(2)} MB)`);
@@ -257,7 +264,7 @@
     });
     recvProgEl.style.width = '0%';
     recvPercentEl.textContent = '0%';
-    log(`📥 Receiving: ${meta.name} (${(meta.size / 1024 / 1024).toFixed(2)} MB)`);
+    log(`📥 Receiving: ${meta.name} from ${meta.sender || 'peer'} (${(meta.size / 1024 / 1024).toFixed(2)} MB)`);
   }
 
   function prepareReceiveChunk(header) {
@@ -297,6 +304,5 @@
     }
   }
 
-  // Initialize - check for room in URL params
   checkUrlParams();
 })();
