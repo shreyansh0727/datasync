@@ -7,7 +7,7 @@ from typing import Any
 import json
 
 from .ws import RoomManager
-from bot.webhook import bot_app  # Import Telegram bot
+from bot.webhook import bot_app, init_bot, shutdown_bot  # Import init functions
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
@@ -79,3 +79,14 @@ async def websocket_signal(websocket: WebSocket, room_id: str):
         _signals.get(room_id, set()).discard(websocket)
         if not _signals.get(room_id):
             _signals.pop(room_id, None)
+
+# Bot initialization in main app startup
+@app.on_event("startup")
+async def startup_event():
+    """Initialize Telegram bot on main app startup"""
+    await init_bot()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Shutdown Telegram bot on main app shutdown"""
+    await shutdown_bot()
