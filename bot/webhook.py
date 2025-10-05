@@ -55,29 +55,25 @@ async def bot_health():
         "token_set": has_token
     }
 
-@bot_app.on_event("startup")
-async def on_startup():
-    """Initialize bot and set webhook on startup"""
+async def init_bot():
+    """Initialize bot - called from main app startup"""
     global application
     
     logger.info("🚀 Starting bot initialization...")
     
-    # Check if token exists
     if not TOKEN:
-        logger.error("❌ TELEGRAM_BOT_TOKEN not found in environment!")
-        logger.error("❌ Bot will not work. Please add token in Render dashboard.")
+        logger.error("❌ TELEGRAM_BOT_TOKEN not found!")
         return
     
     logger.info(f"✅ Token found: {TOKEN[:10]}...{TOKEN[-5:]}")
     
     try:
-        # Build application
         logger.info("📦 Building Telegram application...")
         application = Application.builder().token(TOKEN).build()
-        logger.info("✅ Application built successfully")
+        logger.info("✅ Application built")
         
         # Add handlers
-        logger.info("🔧 Adding command handlers...")
+        logger.info("🔧 Adding handlers...")
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CommandHandler("help", start))
         application.add_handler(CommandHandler("create", create_room))
@@ -90,7 +86,7 @@ async def on_startup():
         application.add_handler(MessageHandler(filters.VIDEO, handle_video))
         logger.info("✅ Handlers added")
         
-        # Initialize the application
+        # Initialize
         logger.info("🔄 Initializing application...")
         await application.initialize()
         logger.info("✅ Application initialized")
@@ -101,21 +97,16 @@ async def on_startup():
             full_url = f"{webhook_url}/bot/webhook"
             logger.info(f"🌐 Setting webhook to: {full_url}")
             await application.bot.set_webhook(url=full_url)
-            logger.info(f"✅ Webhook set successfully!")
+            logger.info(f"✅✅✅ Webhook set! Bot ready! ✅✅✅")
         else:
-            logger.warning("⚠️ WEBHOOK_URL not set in environment")
-            logger.info("💡 Add WEBHOOK_URL in Render dashboard: https://datasync-rgfv.onrender.com")
-        
-        logger.info("✅✅✅ Telegram bot initialized successfully! ✅✅✅")
+            logger.warning("⚠️ WEBHOOK_URL not set")
         
     except Exception as e:
-        logger.error(f"❌❌❌ Failed to initialize bot: {e}")
+        logger.error(f"❌ Failed to initialize bot: {e}")
         logger.exception("Full traceback:")
-        application = None
 
-@bot_app.on_event("shutdown")
-async def on_shutdown():
-    """Clean up on shutdown"""
+async def shutdown_bot():
+    """Shutdown bot - called from main app shutdown"""
     if application:
         try:
             logger.info("🛑 Shutting down bot...")
