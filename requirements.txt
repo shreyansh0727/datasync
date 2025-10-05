@@ -1,4 +1,7 @@
 fastapi
 uvicorn[standard]
-# Optional discovery
-zeroconf
+websockets
+gunicorn
+python-telegram-bot==20.8
+python-dotenv
+aiofiles
