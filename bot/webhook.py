@@ -6,11 +6,13 @@ from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,  # Add this import
     filters,
 )
 from bot.handlers import (
     start, create_room, join_room, leave_room, room_info,
-    handle_message, handle_document, handle_photo, handle_video
+    handle_message, handle_document, handle_photo, handle_video,
+    button_callback  # Add this import
 )
 
 logging.basicConfig(
@@ -64,12 +66,11 @@ async def init_bot():
     logger.info(f"✅ Token found: {TOKEN[:10]}...{TOKEN[-5:]}")
     
     try:
-        # Build application WITHOUT updater (webhook-only mode)
         logger.info("📦 Building Telegram application (webhook mode)...")
         application = (
             Application.builder()
             .token(TOKEN)
-            .updater(None)  # Disable updater for webhook-only
+            .updater(None)
             .build()
         )
         logger.info("✅ Application built")
@@ -82,6 +83,10 @@ async def init_bot():
         application.add_handler(CommandHandler("join", join_room))
         application.add_handler(CommandHandler("leave", leave_room))
         application.add_handler(CommandHandler("room", room_info))
+        
+        # Add callback query handler for buttons
+        application.add_handler(CallbackQueryHandler(button_callback))
+        
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
         application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
         application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
@@ -91,19 +96,39 @@ async def init_bot():
         # Initialize
         logger.info("🔄 Initializing application...")
         await application.initialize()
-        await application.start()  # Start the application
+        await application.start()
         logger.info("✅ Application initialized and started")
         
         # Set webhook
         webhook_url = os.getenv("WEBHOOK_URL")
-        if webhook_url:
-            full_url = f"{webhook_url}/bot/webhook"
-            logger.info(f"🌐 Setting webhook to: {full_url}")
-            await application.bot.set_webhook(url=full_url)
-            logger.info(f"✅✅✅ Webhook set! Bot ready! ✅✅✅")
-        else:
-            logger.warning("⚠️ WEBHOOK_URL not set")
-            logger.info("💡 Add it in Render: https://datasync-rgfv.onrender.com")
+        if not webhook_url:
+            webhook_url = "https://datasync-rgfv.onrender.com"
+            logger.warning(f"⚠️ WEBHOOK_URL not set, using default: {webhook_url}")
+        
+        full_url = f"{webhook_url}/bot/webhook"
+        logger.info(f"🌐 Setting webhook to: {full_url}")
+        
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                result = await application.bot.set_webhook(url=full_url)
+                if result:
+                    logger.info(f"✅✅✅ Webhook set successfully! ✅✅✅")
+                    import asyncio
+                    await asyncio.sleep(1)
+                    webhook_info = await application.bot.get_webhook_info()
+                    logger.info(f"📍 Current webhook: {webhook_info.url}")
+                    if webhook_info.url == full_url:
+                        logger.info("✅ Webhook verified!")
+                    else:
+                        logger.warning(f"⚠️ Webhook mismatch! Expected {full_url}, got {webhook_info.url}")
+                    break
+            except Exception as e:
+                logger.error(f"❌ Webhook attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    logger.info("⏳ Retrying in 2 seconds...")
+                    import asyncio
+                    await asyncio.sleep(2)
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize bot: {e}")
@@ -119,4 +144,3 @@ async def shutdown_bot():
             logger.info("✅ Bot shutdown complete")
         except Exception as e:
             logger.error(f"❌ Error during shutdown: {e}")
-
