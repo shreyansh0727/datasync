@@ -460,3 +460,186 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"to enable cross-platform sharing! 🌐",
         parse_mode='HTML'
     )
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle button clicks"""
+    query = update.callback_query
+    await query.answer()  # Acknowledge the button click
+    
+    callback_data = query.data
+    chat_id = query.message.chat_id
+    
+    if callback_data == "create_room":
+        # Simulate /create command
+        room_id = generate_room_id()
+        room_manager.add_telegram_user(room_id, chat_id)
+        
+        message_text = (
+            "🎉 <b>Room Created Successfully!</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"🔑 <b>Room ID:</b> <code>{room_id}</code>\n"
+            f"👥 <b>Members:</b> 1 (You)\n"
+            f"🌟 <b>Status:</b> Active & Ready\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "📱 <b>Share with Telegram users:</b>\n"
+            f"👉 /join {room_id}\n\n"
+            "🌐 <b>Share with web users:</b>\n"
+            f"👉 https://datasync-rgfv.onrender.com/?room={room_id}\n\n"
+            "💬 Send any file or message now!\n"
+            "Everyone in the room will receive it instantly! ⚡️"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("📊 Room Info", callback_data="room_info")],
+            [InlineKeyboardButton("🚪 Leave Room", callback_data="leave_room")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            message_text,
+            parse_mode='HTML',
+            reply_markup=reply_markup,
+            disable_web_page_preview=True
+        )
+    
+    elif callback_data == "join_prompt":
+        await query.edit_message_text(
+            "🚪 <b>Join a Room</b>\n\n"
+            "To join an existing room, use:\n"
+            "👉 <code>/join ROOM_ID</code>\n\n"
+            "💡 Example: <code>/join ABC123</code>\n\n"
+            "Ask the room creator for the Room ID!",
+            parse_mode='HTML'
+        )
+    
+    elif callback_data == "help":
+        help_text = (
+            "📚 <b>DataSync Help Guide</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "<b>Commands:</b>\n"
+            "/create - Create a new room\n"
+            "/join ROOM_ID - Join existing room\n"
+            "/room - Show current room info\n"
+            "/leave - Leave current room\n"
+            "/help - Show this help\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "<b>How to Share Files:</b>\n"
+            "1️⃣ Join or create a room\n"
+            "2️⃣ Send any file as a document\n"
+            "3️⃣ File is shared with all members\n"
+            "4️⃣ Works across Telegram & Web!\n\n"
+            "<b>Tips:</b>\n"
+            "• Photos/videos: Send as documents for cross-platform\n"
+            "• File size limit: 50 MB\n"
+            "• Rooms auto-cleanup when empty\n\n"
+            "Need more help? Just ask! 💬"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("🎨 Create Room", callback_data="create_room")],
+            [InlineKeyboardButton("🚪 Join Room", callback_data="join_prompt")],
+            [InlineKeyboardButton("« Back", callback_data="back_to_start")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            help_text,
+            parse_mode='HTML',
+            reply_markup=reply_markup
+        )
+    
+    elif callback_data == "room_info":
+        room_id = room_manager.get_user_room(chat_id)
+        if not room_id:
+            await query.edit_message_text(
+                "🤔 <b>You're not in any room!</b>\n\n"
+                "Ready to start? Try:\n"
+                "• /create - Make a new room\n"
+                "• /join ROOM_ID - Join existing",
+                parse_mode='HTML'
+            )
+            return
+        
+        info = room_manager.get_room_info(room_id)
+        
+        message_text = (
+            "📊 <b>Room Dashboard</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"🔑 <b>Room ID:</b> <code>{room_id}</code>\n\n"
+            f"👥 <b>Total Members:</b> {info['total_members']}\n"
+            f"├─ 🌐 Web users: {info['websocket_count']}\n"
+            f"└─ 📱 Telegram users: {info['telegram_count']}\n\n"
+            f"📁 <b>Files Shared:</b> {info['file_count']}\n"
+            f"🌟 <b>Status:</b> Active\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "💡 Share the room ID to invite more people!"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("🔄 Refresh", callback_data="room_info")],
+            [InlineKeyboardButton("🚪 Leave Room", callback_data="leave_room")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            message_text,
+            parse_mode='HTML',
+            reply_markup=reply_markup
+        )
+    
+    elif callback_data == "leave_room":
+        room_id = room_manager.get_user_room(chat_id)
+        if not room_id:
+            await query.edit_message_text(
+                "🤔 <b>Not in any room yet!</b>\n\n"
+                "Use /create to make a new room\n"
+                "or /join ROOM_ID to join one! 🚀",
+                parse_mode='HTML'
+            )
+            return
+        
+        room_manager.remove_telegram_user(room_id, chat_id)
+        
+        await query.edit_message_text(
+            f"👋 <b>Left room</b> <code>{room_id}</code>\n\n"
+            "Thanks for using DataSync!\n"
+            "Create or join another room anytime! 🎉\n\n"
+            "Type /start to see options",
+            parse_mode='HTML'
+        )
+    
+    elif callback_data == "back_to_start":
+        welcome_text = (
+            "✨ <b>Welcome to DataSync!</b> ✨\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "🚀 Share files <b>instantly</b> across devices\n"
+            "🌐 Works on <b>Web & Telegram</b>\n"
+            "🔒 Room-based secure sharing\n"
+            "⚡️ Real-time synchronization\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "💡 <b>Quick Start Guide:</b>\n\n"
+            "1️⃣ Create or join a room\n"
+            "2️⃣ Share the room code\n"
+            "3️⃣ Start sharing files & messages\n"
+            "4️⃣ Everyone receives instantly!\n\n"
+            "🎯 <b>Cross-Platform Magic:</b>\n"
+            "• 📱 Telegram → 🌐 Web ✅\n"
+            "• 🌐 Web → 📱 Telegram ✅\n"
+            "• 📱 Telegram → 📱 Telegram ✅\n\n"
+            "Ready to get started? 🎉"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("🎨 Create New Room", callback_data="create_room")],
+            [InlineKeyboardButton("🚪 Join Existing Room", callback_data="join_prompt")],
+            [InlineKeyboardButton("ℹ️ How It Works", callback_data="help")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            welcome_text,
+            parse_mode='HTML',
+            reply_markup=reply_markup
+        )
+
+
